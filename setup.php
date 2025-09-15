@@ -28,8 +28,8 @@ function plugin_init_importtickets() {
         'addtabon' => ['Profile']
     ]);
     
-    // Register the main plugin class
-    Plugin::registerClass('PluginImporttickets');
+    // Register the main plugin class with install/uninstall methods
+    Plugin::registerClass('PluginImporttickets', ['addtabon' => ['Ticket']]);
     
     // Add JavaScript and CSS
     $PLUGIN_HOOKS['add_javascript']['importtickets'] = ['js/importtickets.js'];
