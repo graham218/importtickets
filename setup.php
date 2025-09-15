@@ -8,6 +8,9 @@ define('PLUGIN_IMPORTTICKETS_VERSION', '1.0.0');
 define('PLUGIN_IMPORTTICKETS_MIN_GLPI', '10.0.0');
 define('PLUGIN_IMPORTTICKETS_MAX_GLPI', '11.99.99');
 
+// Explicitly include the main class to avoid autoloading issues
+include_once(__DIR__ . '/PluginImporttickets.class.php');
+
 function plugin_init_importtickets() {
     global $PLUGIN_HOOKS;
     
@@ -74,6 +77,11 @@ function plugin_importtickets_check_prerequisites() {
         echo "This plugin requires GLPI >= " . PLUGIN_IMPORTTICKETS_MIN_GLPI;
         return false;
     }
+    if (!class_exists('PluginImporttickets')) {
+        error_log("plugin_importtickets_check_prerequisites: PluginImporttickets class not found");
+        echo "Error: PluginImporttickets class not found";
+        return false;
+    }
     return true;
 }
 
@@ -84,12 +92,26 @@ function plugin_importtickets_check_config($verbose = false) {
     return true;
 }
 
-// Install function to call PluginImporttickets::install()
+// Install function
 function plugin_importtickets_install() {
-    return PluginImporttickets::install();
+    error_log("plugin_importtickets_install: Starting installation");
+    if (!class_exists('PluginImporttickets')) {
+        error_log("plugin_importtickets_install: PluginImporttickets class not found");
+        return false;
+    }
+    $result = PluginImporttickets::install();
+    error_log("plugin_importtickets_install: Installation result: " . ($result ? 'success' : 'failed'));
+    return $result;
 }
 
-// Uninstall function to call PluginImporttickets::uninstall()
+// Uninstall function
 function plugin_importtickets_uninstall() {
-    return PluginImporttickets::uninstall();
+    error_log("plugin_importtickets_uninstall: Starting uninstallation");
+    if (!class_exists('PluginImporttickets')) {
+        error_log("plugin_importtickets_uninstall: PluginImporttickets class not found");
+        return false;
+    }
+    $result = PluginImporttickets::uninstall();
+    error_log("plugin_importtickets_uninstall: Uninstallation result: " . ($result ? 'success' : 'failed'));
+    return $result;
 }
