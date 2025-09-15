@@ -12,6 +12,62 @@ class PluginImporttickets extends CommonDBTM {
     static $rightname = 'plugin_importtickets';
     
     /**
+     * Install plugin
+     */
+    static function install() {
+        global $DB;
+        
+        // Create config table
+        $default_config = [
+            'id' => 1,
+            'default_entity' => 0,
+            'default_category' => 0,
+            'default_urgency' => 3,
+            'default_impact' => 2,
+            'default_priority' => 3
+        ];
+        
+        // Create config table if it doesn't exist
+        if (!$DB->tableExists('glpi_plugin_importtickets_configs')) {
+            $query = "CREATE TABLE `glpi_plugin_importtickets_configs` (
+                `id` INT NOT NULL AUTO_INCREMENT,
+                `default_entity` INT NOT NULL DEFAULT 0,
+                `default_category` INT NOT NULL DEFAULT 0,
+                `default_urgency` INT NOT NULL DEFAULT 3,
+                `default_impact` INT NOT NULL DEFAULT 2,
+                `default_priority` INT NOT NULL DEFAULT 3,
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci";
+            $DB->queryOrDie($query, $DB->error());
+            
+            // Insert default config
+            $DB->insertOrDie('glpi_plugin_importtickets_configs', $default_config);
+        }
+        
+        // Install profiles
+        PluginImportticketsProfile::install();
+        
+        return true;
+    }
+    
+    /**
+     * Uninstall plugin
+     */
+    static function uninstall() {
+        global $DB;
+        
+        // Remove config table
+        if ($DB->tableExists('glpi_plugin_importtickets_configs')) {
+            $DB->queryOrDie("DROP TABLE IF EXISTS `glpi_plugin_importtickets_configs`");
+        }
+        
+        // Uninstall profiles
+        PluginImportticketsProfile::uninstall();
+        
+        return true;
+    }
+    
+    /**
      * Get menu content
      */
     static function getMenuContent() {
