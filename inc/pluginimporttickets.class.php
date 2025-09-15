@@ -11,10 +11,14 @@ class PluginImporttickets extends CommonDBTM {
     
     static $rightname = 'plugin_importtickets';
     
+    static function getTable($classname = null) {
+        return 'glpi_plugin_importtickets_configs';
+    }
+    
     /**
      * Install plugin
      */
-    static function install() {
+    static function install($migration = null) {
         global $DB;
         
         // Create config table
@@ -37,7 +41,7 @@ class PluginImporttickets extends CommonDBTM {
                 `default_impact` INT NOT NULL DEFAULT 2,
                 `default_priority` INT NOT NULL DEFAULT 3,
                 PRIMARY KEY (`id`)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci";
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
             $DB->queryOrDie($query, $DB->error());
             
             // Insert default config
@@ -87,8 +91,7 @@ class PluginImporttickets extends CommonDBTM {
      */
     static function getImportFormats() {
         return [
-            'csv'  => __('CSV File', 'importtickets'),
-            'json' => __('JSON File', 'importtickets')
+            'csv'  => __('CSV File', 'importtickets')
         ];
     }
     
@@ -129,73 +132,18 @@ class PluginImporttickets extends CommonDBTM {
             'imported_ids' => []
         ];
         
-        if (($handle = fopen($file_path, 'r')) !== FALSE) {
-            $headers = fgetcsv($handle);
-            
-            // Get field mapping from options or use default
-            $field_mapping = $options['field_mapping'] ?? [];
-            if (empty($field_mapping)) {
-                $field_mapping = self::getDefaultFieldMapping($headers);
-            }
-            
-            $line = 1;
-            $has_headers = $options['has_headers'] ?? true;
-            
-            if ($has_headers) {
-                $line++; // Skip header row
-            }
-            
-            while (($data = fgetcsv($handle)) !== FALSE) {
-                $line++;
-                
-                // Skip empty rows
-                if (count(array_filter($data)) === 0) {
-                    $results['skipped']++;
-                    continue;
-                }
-                
-                if (count($data) != count($headers)) {
-                    $results['errors']++;
-                    $results['messages'][] = sprintf(__('Line %d: Invalid number of columns', 'importtickets'), $line);
-                    continue;
-                }
-                
-                $row_data = array_combine($headers, $data);
-                $ticket_data = [];
-                
-                // Map CSV columns to GLPI fields
-                foreach ($field_mapping as $csv_field => $glpi_field) {
-                    if (isset($row_data[$csv_field]) && !empty($glpi_field) && trim($row_data[$csv_field]) !== '') {
-                        $ticket_data[$glpi_field] = trim($row_data[$csv_field]);
-                    }
-                }
-                
-                // Process the ticket
-                $ticket_id = self::createTicket($ticket_data, $options);
-                if ($ticket_id) {
-                    $results['success']++;
-                    $results['imported_ids'][] = $ticket_id;
-                } else {
-                    $results['errors']++;
-                    $results['messages'][] = sprintf(__('Line %d: Failed to create ticket', 'importtickets'), $line);
-                }
-            }
-            fclose($handle);
+        if (($handle = fopen($file_path, 'r')) === FALSE) {
+            $results['errors']++;
+            $results['messages'][] = __('Failed to open file', 'importtickets');
+            return $results;
         }
         
-        return $results;
-    }
-    
-    /**
-     * Get default field mapping based on headers
-     */
-    static function getDefaultFieldMapping($headers) {
-        $default_mapping = [
+        // Define header mapping
+        $header_map = [
             'title' => 'name',
             'description' => 'content',
             'requester' => '_users_id_requester',
             'technician' => '_users_id_assign',
-            'group' => '_groups_id_assign',
             'category' => 'itilcategories_id',
             'priority' => 'priority',
             'type' => 'type',
@@ -206,97 +154,106 @@ class PluginImporttickets extends CommonDBTM {
             'location' => 'locations_id'
         ];
         
-        $mapping = [];
-        foreach ($headers as $header) {
-            $header_lower = strtolower(trim($header));
-            $mapping[$header] = $default_mapping[$header_lower] ?? '';
+        // Read headers
+        $headers = fgetcsv($handle, 0, ',');
+        if ($headers === FALSE) {
+            $results['errors']++;
+            $results['messages'][] = __('Failed to read headers', 'importtickets');
+            fclose($handle);
+            return $results;
         }
         
-        return $mapping;
-    }
-    
-    /**
-     * Create a ticket from data
-     */
-    static function createTicket($data, $options = []) {
-        $ticket = new Ticket();
-        
-        // Set default values
-        $defaults = [
-            'name' => __('Imported Ticket', 'importtickets'),
-            'content' => __('Imported from CSV', 'importtickets'),
-            '_users_id_requester' => Session::getLoginUserID(),
-            'itilcategories_id' => 0,
-            'priority' => 3,
-            'urgency' => 3,
-            'impact' => 2,
-            'type' => Ticket::INCIDENT_TYPE,
-            'status' => Ticket::INCOMING,
-            'entities_id' => $_SESSION['glpiactive_entity'],
-            'date' => date('Y-m-d H:i:s'),
-            'date_mod' => date('Y-m-d H:i:s')
-        ];
-        
-        $input = array_merge($defaults, $data);
-        
-        // Convert field values to appropriate types
-        $input = self::convertFieldValues($input);
-        
-        // Validate required fields
-        if (empty($input['name']) || empty($input['content'])) {
-            return false;
-        }
-        
-        try {
-            $ticket_id = $ticket->add($input);
+        $row = 0;
+        while (($data = fgetcsv($handle, 0, ',')) !== FALSE) {
+            $row++;
             
-            if ($ticket_id && !empty($options['add_followup'])) {
-                $followup = new ITILFollowup();
-                $followup->add([
-                    'items_id' => $ticket_id,
-                    'itemtype' => 'Ticket',
-                    'content' => __('Ticket imported from CSV', 'importtickets'),
-                    'users_id' => Session::getLoginUserID()
-                ]);
+            // Skip empty rows
+            if (empty(array_filter($data, 'strlen'))) {
+                $results['skipped']++;
+                $results['messages'][] = sprintf(__('Line %d: Empty row, skipped', 'importtickets'), $row);
+                continue;
             }
             
-            return $ticket_id;
+            // Map data to ticket fields
+            $input = [];
+            if ($options['has_headers'] && !empty($headers)) {
+                foreach ($headers as $col => $header) {
+                    $header = trim(strtolower($header));
+                    if (isset($header_map[$header]) && isset($data[$col])) {
+                        $field = $header_map[$header];
+                        $input[$field] = trim($data[$col]);
+                    }
+                }
+            } else {
+                // Fixed position mapping
+                $ordered_fields = array_values($header_map);
+                foreach ($data as $col => $value) {
+                    if (isset($ordered_fields[$col])) {
+                        $input[$ordered_fields[$col]] = trim($value);
+                    }
+                }
+            }
             
-        } catch (Exception $e) {
-            return false;
+            // Apply defaults and conversions
+            $input = self::prepareTicketInput($input);
+            
+            // Validate required fields
+            if (empty($input['name'])) {
+                $results['skipped']++;
+                $results['messages'][] = sprintf(__('Line %d: No title provided, skipped', 'importtickets'), $row);
+                continue;
+            }
+            
+            // Create ticket
+            $ticket = new Ticket();
+            if (Session::haveRight('ticket', CREATE)) {
+                $ticket_id = $ticket->add($input);
+                
+                if ($ticket_id) {
+                    $results['success']++;
+                    $results['imported_ids'][] = $ticket_id;
+                    
+                    if ($options['add_followup']) {
+                        $followup = new ITILFollowup();
+                        $f_input = [
+                            'itemtype' => Ticket::class,
+                            'items_id' => $ticket_id,
+                            'content' => __('Ticket imported from CSV', 'importtickets'),
+                            'users_id' => Session::getLoginUserID(),
+                            'requesttypes_id' => 1 // Information
+                        ];
+                        $followup->add($f_input);
+                    }
+                } else {
+                    $results['errors']++;
+                    $results['messages'][] = sprintf(__('Line %d: Failed to create ticket', 'importtickets'), $row);
+                }
+            } else {
+                $results['errors']++;
+                $results['messages'][] = sprintf(__('Line %d: No permission to create tickets', 'importtickets'), $row);
+            }
         }
+        
+        fclose($handle);
+        return $results;
     }
     
     /**
-     * Convert field values to appropriate types
+     * Prepare ticket input with conversions and defaults
      */
-    static function convertFieldValues($input) {
-        // Convert priority
-        if (isset($input['priority'])) {
-            $input['priority'] = self::convertPriority($input['priority']);
-        }
+    static function prepareTicketInput($input) {
+        $config = self::getConfig();
         
-        // Convert status
-        if (isset($input['status'])) {
-            $input['status'] = self::convertStatus($input['status']);
-        }
+        // Set defaults
+        $input['entities_id'] = $input['entities_id'] ?? ($_SESSION['glpiactive_entity'] ?? $config['default_entity'] ?? 0);
+        $input['itilcategories_id'] = $input['itilcategories_id'] ?? ($config['default_category'] ?? 0);
+        $input['urgency'] = $input['urgency'] ?? ($config['default_urgency'] ?? 3);
+        $input['impact'] = $input['impact'] ?? ($config['default_impact'] ?? 2);
+        $input['priority'] = $input['priority'] ?? ($config['default_priority'] ?? 3);
+        $input['type'] = $input['type'] ?? 1; // Incident
+        $input['status'] = $input['status'] ?? 1; // New
         
-        // Convert type
-        if (isset($input['type'])) {
-            $input['type'] = self::convertType($input['type']);
-        }
-        
-        // Convert urgency
-        if (isset($input['urgency'])) {
-            $input['urgency'] = self::convertUrgency($input['urgency']);
-        }
-        
-        // Convert impact
-        if (isset($input['impact'])) {
-            $input['impact'] = self::convertImpact($input['impact']);
-        }
-        
-        // Find user by login/email/name
+        // Convert strings to IDs/numbers
         if (isset($input['_users_id_requester']) && !is_numeric($input['_users_id_requester'])) {
             $input['_users_id_requester'] = self::findUser($input['_users_id_requester']);
         }
@@ -305,31 +262,73 @@ class PluginImporttickets extends CommonDBTM {
             $input['_users_id_assign'] = self::findUser($input['_users_id_assign']);
         }
         
-        // Find category by name
         if (isset($input['itilcategories_id']) && !is_numeric($input['itilcategories_id'])) {
             $input['itilcategories_id'] = self::findCategory($input['itilcategories_id']);
         }
         
-        // Find entity by name
         if (isset($input['entities_id']) && !is_numeric($input['entities_id'])) {
             $input['entities_id'] = self::findEntity($input['entities_id']);
         }
         
-        // Find location by name
         if (isset($input['locations_id']) && !is_numeric($input['locations_id'])) {
             $input['locations_id'] = self::findLocation($input['locations_id']);
         }
         
-        // Convert dates
-        if (isset($input['date']) && !preg_match('/^\d{4}-\d{2}-\d{2}/', $input['date'])) {
-            $input['date'] = date('Y-m-d H:i:s', strtotime($input['date']));
+        // Convert enums
+        if (isset($input['urgency'])) {
+            $input['urgency'] = self::convertUrgency($input['urgency']);
+        }
+        if (isset($input['impact'])) {
+            $input['impact'] = self::convertImpact($input['impact']);
+        }
+        if (isset($input['priority'])) {
+            $input['priority'] = self::convertPriority($input['priority']);
+        }
+        if (isset($input['type'])) {
+            $input['type'] = self::convertType($input['type']);
+        }
+        if (isset($input['status'])) {
+            $input['status'] = self::convertStatus($input['status']);
         }
         
-        if (isset($input['time_to_resolve']) && !preg_match('/^\d{4}-\d{2}-\d{2}/', $input['time_to_resolve'])) {
-            $input['time_to_resolve'] = date('Y-m-d H:i:s', strtotime($input['time_to_resolve']));
+        // Convert dates
+        if (isset($input['date']) && !empty($input['date']) && !preg_match('/^\d{4}-\d{2}-\d{2}/', $input['date'])) {
+            $date = strtotime($input['date']);
+            if ($date !== false) {
+                $input['date'] = date('Y-m-d H:i:s', $date);
+            } else {
+                unset($input['date']);
+            }
+        }
+        
+        if (isset($input['time_to_resolve']) && !empty($input['time_to_resolve']) && !preg_match('/^\d{4}-\d{2}-\d{2}/', $input['time_to_resolve'])) {
+            $date = strtotime($input['time_to_resolve']);
+            if ($date !== false) {
+                $input['time_to_resolve'] = date('Y-m-d H:i:s', $date);
+            } else {
+                unset($input['time_to_resolve']);
+            }
         }
         
         return $input;
+    }
+    
+    /**
+     * Get plugin config
+     */
+    static function getConfig($field = null) {
+        global $DB;
+        
+        $config = [];
+        if ($DB->tableExists(self::getTable())) {
+            $iterator = $DB->request([
+                'FROM' => self::getTable(),
+                'LIMIT' => 1
+            ]);
+            $config = $iterator->current() ?: [];
+        }
+        
+        return $field && isset($config[$field]) ? $config[$field] : $config;
     }
     
     /**
@@ -416,7 +415,7 @@ class PluginImporttickets extends CommonDBTM {
             return $ent_data['id'];
         }
         
-        return $_SESSION['glpiactive_entity'];
+        return $_SESSION['glpiactive_entity'] ?? 0;
     }
     
     static function findLocation($name) {
