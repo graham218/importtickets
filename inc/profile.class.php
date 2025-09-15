@@ -78,20 +78,20 @@ class PluginImportticketsProfile extends Profile {
     /**
      * Install profiles
      */
-    static function install($migration = null) {
+    static function install() {
         global $DB;
         
         $profileRight = new ProfileRight();
         foreach (self::getAllRights() as $right) {
             if (!countElementsInTable('glpi_profilerights', ['name' => $right['field']])) {
-                $profileRight->add(['name'  => $right['field'], 'rights' => 0]);
+                $profileRight->add(['name' => $right['field'], 'rights' => READ]);
             }
         }
         
         // Add rights to all existing profiles
         $profiles = $DB->request(['FROM' => 'glpi_profiles']);
         foreach ($profiles as $profile) {
-            self::addDefaultProfileInfos($profile['id'], ['plugin_importtickets' => 0]);
+            self::addDefaultProfileInfos($profile['id'], ['plugin_importtickets' => READ]);
         }
     }
     
