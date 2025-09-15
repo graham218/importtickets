@@ -15,7 +15,7 @@ function plugin_init_importtickets() {
     
     // Add menu entry
     $PLUGIN_HOOKS['menu_toadd']['importtickets'] = [
-        'tools' => 'PluginImportticketsMenu'
+        'tools' => 'PluginImporttickets'
     ];
     
     // Add configuration page
@@ -28,8 +28,8 @@ function plugin_init_importtickets() {
         'addtabon' => ['Profile']
     ]);
     
-    // Register the main plugin class with install/uninstall methods
-    Plugin::registerClass('PluginImporttickets', ['addtabon' => ['Ticket']]);
+    // Register the main plugin class
+    Plugin::registerClass('PluginImporttickets', []);
     
     // Add JavaScript and CSS
     $PLUGIN_HOOKS['add_javascript']['importtickets'] = ['js/importtickets.js'];
@@ -82,4 +82,14 @@ function plugin_importtickets_check_config($verbose = false) {
         echo "Ticket Import plugin is correctly installed";
     }
     return true;
+}
+
+// Install function to call PluginImporttickets::install()
+function plugin_importtickets_install() {
+    return PluginImporttickets::install();
+}
+
+// Uninstall function to call PluginImporttickets::uninstall()
+function plugin_importtickets_uninstall() {
+    return PluginImporttickets::uninstall();
 }
