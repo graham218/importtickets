@@ -36,27 +36,62 @@ class PluginImportticketsProfile extends Profile {
      * Show profile form
      */
     function showForm($profiles_id = 0, $openform = true, $closeform = true) {
-        $canedit = Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, PURGE]);
-        if ($canedit && $openform) {
+        global $CFG_GLPI;
+        
+        // Check permissions
+        if (!Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, PURGE])) {
+            echo "<div class='center'>" . __('No permission to modify rights', 'importtickets') . "</div>";
+            return false;
+        }
+        
+        // Validate profile ID
+        $profile = new Profile();
+        if (!$profile->getFromDB($profiles_id)) {
+            echo "<div class='center'>" . __('Invalid profile ID', 'importtickets') . "</div>";
+            return false;
+        }
+        
+        if ($openform) {
             echo "<form method='post' action='" . $this->getFormURL() . "'>";
         }
         
-        $profile = new Profile();
-        $profile->getFromDB($profiles_id);
+        echo "<table class='tab_cadre_fixe'>";
+        echo "<tr><th colspan='2'>" . __('Ticket Import Rights', 'importtickets') . "</th></tr>";
         
-        $rights = $this->getAllRights();
-        $profile->displayRightsChoiceMatrix($rights, [
-            'canedit'       => $canedit,
-            'default_class' => 'tab_bg_2',
-            'title'         => __('General rights')
+        echo "<tr class='tab_bg_1'>";
+        echo "<td>" . __('Use ticket import feature', 'importtickets') . "</td>";
+        echo "<td>";
+        $profileRight = new ProfileRight();
+        $current_right = $profileRight->getFromDBByCrit([
+            'profiles_id' => $profiles_id,
+            'name' => 'plugin_importtickets'
+        ]) ? $profileRight->fields['rights'] : 0;
+        
+        Dropdown::showYesNo('rights[plugin_importtickets]', $current_right, -1, [
+            'width' => '100px'
         ]);
+        echo "</td></tr>";
         
-        if ($canedit && $closeform) {
-            echo "<div class='center'>";
+        if ($closeform) {
+            echo "<tr class='tab_bg_2'>";
+            echo "<td colspan='2' class='center'>";
             echo Html::hidden('id', ['value' => $profiles_id]);
             echo Html::submit(_sx('button', 'Save'), ['name' => 'update']);
-            echo "</div>\n";
+            echo "</td></tr>";
+            echo "</table>";
             Html::closeForm();
+        }
+        
+        // Handle form submission
+        if (isset($_POST['update']) && isset($_POST['rights']['plugin_importtickets']) && Session::checkCSRF()) {
+            $rights = [
+                $profiles_id => [
+                    'plugin_importtickets' => $_POST['rights']['plugin_importtickets'] ? READ : 0
+                ]
+            ];
+            ProfileRight::updateProfileRights($profiles_id, $rights);
+            Session::addMessageAfterRedirect(__('Rights updated successfully', 'importtickets'), true, INFO);
+            Html::redirect($CFG_GLPI['root_doc'] . "/front/profile.form.php?id=$profiles_id");
         }
     }
     
@@ -64,15 +99,13 @@ class PluginImportticketsProfile extends Profile {
      * Get all rights
      */
     static function getAllRights() {
-        $rights = [
+        return [
             [
                 'itemtype' => 'PluginImporttickets',
                 'label'    => __('Use ticket import feature', 'importtickets'),
                 'field'    => 'plugin_importtickets'
             ]
         ];
-        
-        return $rights;
     }
     
     /**
