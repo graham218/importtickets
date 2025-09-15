@@ -28,9 +28,29 @@ function plugin_init_importtickets() {
         'addtabon' => ['Profile']
     ]);
     
+    // Register the main plugin class
+    Plugin::registerClass('PluginImporttickets');
+    
     // Add JavaScript and CSS
     $PLUGIN_HOOKS['add_javascript']['importtickets'] = ['js/importtickets.js'];
     $PLUGIN_HOOKS['add_css']['importtickets'] = ['css/importtickets.css'];
+    
+    // Add locale support
+    $PLUGIN_HOOKS['init_session']['importtickets'] = 'plugin_importtickets_init_session';
+    $PLUGIN_HOOKS['change_profile']['importtickets'] = 'plugin_importtickets_change_profile';
+}
+
+// Add these functions for locale support
+function plugin_importtickets_init_session() {
+    if (isset($_SESSION['glpilanguage'])) {
+        $lang = $_SESSION['glpilanguage'];
+        bindtextdomain('importtickets', Plugin::getPhpDir('importtickets') . '/locales');
+        textdomain('importtickets');
+    }
+}
+
+function plugin_importtickets_change_profile() {
+    plugin_importtickets_init_session();
 }
 
 function plugin_version_importtickets() {
