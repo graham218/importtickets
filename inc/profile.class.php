@@ -78,7 +78,7 @@ class PluginImportticketsProfile extends Profile {
     /**
      * Install profiles
      */
-    static function install($migration) {
+    static function install($migration = null) {
         global $DB;
         
         $profileRight = new ProfileRight();
@@ -86,6 +86,12 @@ class PluginImportticketsProfile extends Profile {
             if (!countElementsInTable('glpi_profilerights', ['name' => $right['field']])) {
                 $profileRight->add(['name'  => $right['field'], 'rights' => 0]);
             }
+        }
+        
+        // Add rights to all existing profiles
+        $profiles = $DB->request(['FROM' => 'glpi_profiles']);
+        foreach ($profiles as $profile) {
+            self::addDefaultProfileInfos($profile['id'], ['plugin_importtickets' => 0]);
         }
     }
     
@@ -96,6 +102,23 @@ class PluginImportticketsProfile extends Profile {
         $profileRight = new ProfileRight();
         foreach (self::getAllRights() as $right) {
             $profileRight->deleteByCriteria(['name' => $right['field']]);
+        }
+    }
+    
+    /**
+     * Add default rights to a profile
+     */
+    static function addDefaultProfileInfos($profiles_id, $rights) {
+        $profileRight = new ProfileRight();
+        foreach ($rights as $right => $value) {
+            if (!countElementsInTable('glpi_profilerights',
+                ['profiles_id' => $profiles_id, 'name' => $right])) {
+                $profileRight->add([
+                    'profiles_id' => $profiles_id,
+                    'name'        => $right,
+                    'rights'      => $value
+                ]);
+            }
         }
     }
 }
