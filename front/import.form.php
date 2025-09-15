@@ -8,7 +8,7 @@ include ('../../../inc/includes.php');
 // Check rights
 Session::checkRight('plugin_importtickets', READ);
 
-Html::header(__('Ticket Import', 'importtickets'), $_SERVER['PHP_SELF'], 'tools', 'pluginimportticketsmenu');
+Html::header(__('Ticket Import', 'importtickets'), $_SERVER['PHP_SELF'], 'tools', 'PluginImporttickets');
 
 echo "<div class='center'>";
 echo "<h2>" . __('Import Tickets', 'importtickets') . "</h2>";
