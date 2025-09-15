@@ -135,3 +135,18 @@ msgstr "Importé depuis CSV"
 
 msgid "Ticket imported from CSV"
 msgstr "Ticket importé depuis CSV"
+
+msgid "Failed to open file"
+msgstr "Impossible d'ouvrir le fichier"
+
+msgid "Failed to read headers"
+msgstr "Impossible de lire les en-têtes"
+
+msgid "Line %d: Empty row, skipped"
+msgstr "Ligne %d: Ligne vide, ignorée"
+
+msgid "Line %d: No title provided, skipped"
+msgstr "Ligne %d: Aucun titre fourni, ignoré"
+
+msgid "Line %d: No permission to create tickets"
+msgstr "Ligne %d: Pas de permission pour créer des tickets"
