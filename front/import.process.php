@@ -21,8 +21,7 @@ $file_name = $_FILES['import_file']['name'];
 
 // Check file extension
 $allowed_extensions = [
-    'csv' => ['csv', 'txt'],
-    'json' => ['json']
+    'csv' => ['csv', 'txt']
 ];
 
 $file_extension = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
@@ -53,16 +52,6 @@ try {
     switch ($format) {
         case 'csv':
             $results = PluginImporttickets::processCSVImport($file_path, $options);
-            break;
-            
-        case 'json':
-            $results = [
-                'success' => 0, 
-                'errors' => 1, 
-                'skipped' => 0,
-                'messages' => [__('JSON import not yet implemented', 'importtickets')],
-                'imported_ids' => []
-            ];
             break;
             
         default:
