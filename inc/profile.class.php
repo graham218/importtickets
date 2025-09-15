@@ -38,6 +38,9 @@ class PluginImportticketsProfile extends Profile {
     function showForm($profiles_id = 0, $openform = true, $closeform = true) {
         global $CFG_GLPI;
         
+        // Log form access
+        error_log("PluginImportticketsProfile::showForm called for profile ID: $profiles_id");
+        
         // Check permissions
         if (!Session::haveRightsOr(self::$rightname, [CREATE, UPDATE, PURGE])) {
             echo "<div class='center'>" . __('No permission to modify rights', 'importtickets') . "</div>";
@@ -84,6 +87,8 @@ class PluginImportticketsProfile extends Profile {
         
         // Handle form submission
         if (isset($_POST['update']) && isset($_POST['rights']['plugin_importtickets']) && Session::checkCSRF()) {
+            error_log("PluginImportticketsProfile: Processing form submission for profile ID: $profiles_id, rights: " . print_r($_POST['rights'], true));
+            
             $rights = [
                 $profiles_id => [
                     'plugin_importtickets' => $_POST['rights']['plugin_importtickets'] ? READ : 0
@@ -91,6 +96,7 @@ class PluginImportticketsProfile extends Profile {
             ];
             ProfileRight::updateProfileRights($profiles_id, $rights);
             Session::addMessageAfterRedirect(__('Rights updated successfully', 'importtickets'), true, INFO);
+            error_log("PluginImportticketsProfile: Rights updated for profile ID: $profiles_id, redirecting to profile.form.php");
             Html::redirect($CFG_GLPI['root_doc'] . "/front/profile.form.php?id=$profiles_id");
         }
     }
